@@ -26,14 +26,31 @@ function setupBackgroundRefresh() {
   refreshInterval = setInterval(async () => {
     try {
       const users = cacheManager.getAllUsers();
-      for (const userId of users) {
-        const accessToken = await authController.getValidAccessToken(userId);
-        if (accessToken) {
-          const events = await calendarService.getTodayEvents(accessToken);
-          cacheManager.cacheEvents(userId, events);
-          console.log(`Background refresh completed for user ${userId}`);
+      console.log(`Starting background refresh for ${users.length} users...`);
+      
+      // Refresh all users' data in parallel for better performance
+      const refreshPromises = users.map(async (userId) => {
+        try {
+          const accessToken = await authController.getValidAccessToken(userId);
+          if (accessToken) {
+            const events = await calendarService.getTodayEvents(accessToken);
+            cacheManager.cacheEvents(userId, events);
+            console.log(`✓ Background refresh completed for user ${userId}`);
+            return { userId, success: true, eventCount: events.length };
+          } else {
+            console.log(`⚠ No valid token for user ${userId}`);
+            return { userId, success: false, reason: 'no_token' };
+          }
+        } catch (error) {
+          console.error(`✗ Background refresh failed for user ${userId}:`, error);
+          return { userId, success: false, reason: 'error', error: error.message };
         }
-      }
+      });
+      
+      const results = await Promise.allSettled(refreshPromises);
+      const successCount = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+      console.log(`Background refresh completed: ${successCount}/${users.length} users updated`);
+      
     } catch (error) {
       console.error("Background refresh error:", error);
     }
@@ -41,6 +58,8 @@ function setupBackgroundRefresh() {
     // Set up next random interval
     setupBackgroundRefresh();
   }, randomInterval);
+  
+  console.log(`📅 Next background refresh scheduled in ${Math.round(randomInterval / 1000)} seconds`);
 }
 
 // Start background refresh
@@ -132,6 +151,34 @@ const server = serve({
           });
         }
 
+        if (path === "/api/users/status") {
+          const users = cacheManager.getAllUserProfiles();
+          const userStatus = users.map(user => {
+            const tokenData = cacheManager.getTokenData(user.id);
+            const isExpired = cacheManager.isTokenExpired(user.id);
+            const cachedEvents = cacheManager.getCachedEvents(user.id);
+            const cacheValid = cacheManager.isCacheValid(user.id);
+            const lastUpdateTimestamp = cacheManager.getCacheTimestamp(user.id);
+            
+            return {
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              hasToken: !!tokenData?.accessToken,
+              tokenExpired: isExpired,
+              eventCount: cachedEvents?.length || 0,
+              cacheValid,
+              lastUpdate: lastUpdateTimestamp ? new Date(lastUpdateTimestamp).toISOString() : null,
+              lastUpdateRelative: lastUpdateTimestamp ? 
+                getRelativeTime(lastUpdateTimestamp) : 'Never'
+            };
+          });
+          
+          return new Response(JSON.stringify({ userStatus }), {
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+
         if (path === "/api/token-status") {
           const userId = url.searchParams.get("userId");
           if (!userId) {
@@ -185,34 +232,47 @@ function serveStaticFile(filePath: string) {
     const ext = filePath.split('.').pop()?.toLowerCase();
     
     let contentType = "text/plain";
+    const headers: Record<string, string> = {};
+    
     switch (ext) {
       case "html":
         contentType = "text/html";
+        // Prevent caching of HTML files for better development experience
+        headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+        headers["Pragma"] = "no-cache";
+        headers["Expires"] = "0";
         break;
       case "css":
         contentType = "text/css";
+        headers["Cache-Control"] = "public, max-age=3600"; // 1 hour
         break;
       case "js":
         contentType = "application/javascript";
+        // Short cache for JS files during development
+        headers["Cache-Control"] = "public, max-age=300"; // 5 minutes
         break;
       case "json":
         contentType = "application/json";
+        headers["Cache-Control"] = "no-cache";
         break;
       case "png":
         contentType = "image/png";
+        headers["Cache-Control"] = "public, max-age=86400"; // 1 day
         break;
       case "jpg":
       case "jpeg":
         contentType = "image/jpeg";
+        headers["Cache-Control"] = "public, max-age=86400"; // 1 day
         break;
       case "ico":
         contentType = "image/x-icon";
+        headers["Cache-Control"] = "public, max-age=86400"; // 1 day
         break;
     }
     
-    return new Response(content, {
-      headers: { "Content-Type": contentType }
-    });
+    headers["Content-Type"] = contentType;
+    
+    return new Response(content, { headers });
   } catch (error) {
     return new Response("Internal Server Error", { status: 500 });
   }
@@ -220,3 +280,27 @@ function serveStaticFile(filePath: string) {
 
 console.log(`🚀 MS Graph Calendar WebUI Daemon running on http://localhost:${PORT}`);
 console.log(`📅 Background refresh: every 60±10 seconds`);
+
+// Helper function for relative time formatting
+function getRelativeTime(timestamp: number): string {
+  const now = Date.now();
+  const diff = now - timestamp;
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) {
+    return `${days} day${days > 1 ? 's' : ''} ago`;
+  }
+  if (hours > 0) {
+    return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  }
+  if (minutes > 0) {
+    return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+  }
+  if (seconds > 30) {
+    return `${seconds} seconds ago`;
+  }
+  return 'Just now';
+}

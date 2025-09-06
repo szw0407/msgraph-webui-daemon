@@ -5,11 +5,16 @@ A web-based dashboard that displays Microsoft Graph calendar events with automat
 ## Features
 
 - 🔐 Microsoft Graph authentication (OAuth login)
-- 📅 Today's calendar events display
+- 📅 Today's calendar events display  
 - 🔄 Background auto-refresh every 60±10 seconds (anti-robot detection)
 - 💾 Data caching for offline viewing
 - 📱 Responsive web interface
 - 🎨 Modern, clean UI design
+- 👥 **Multi-User Support**: Switch between multiple Microsoft accounts seamlessly
+- ⌨️ **Keyboard Shortcuts**: Quick user switching with Alt+1-9, Alt+A to add accounts
+- 🔗 **Account Management**: Add, remove, and manage multiple accounts from settings
+- ⚡ **Instant Switching**: Zero-delay account switching with cached data
+- 📊 **User Status Display**: Real-time status for all connected accounts
 
 ## Setup Instructions
 
@@ -42,6 +47,21 @@ bun run dev
 4. View your today's calendar events!
 
 The dashboard will automatically refresh data in the background every 60±10 seconds. You can also manually refresh using the "Manual Refresh" button.
+
+### Multi-User Features
+
+- **Add Multiple Accounts**: Click the "Add Account" button or use `Alt+A` to connect additional Microsoft accounts
+- **Switch Users**: Click on user badges or use keyboard shortcuts `Alt+1` through `Alt+9` to quickly switch between accounts
+- **Account Management**: Access the settings page with `Alt+S` to view all connected accounts, their status, and remove accounts
+- **Auto-Refresh**: All connected accounts are automatically refreshed in the background
+- **Instant Switching**: Switch between users with zero delay using cached data
+
+### Keyboard Shortcuts
+
+- `Alt + 1-9` - Switch to user account 1-9
+- `Alt + A` - Add new Microsoft account  
+- `Alt + S` - Open settings/account management
+- `F5` or `Ctrl+R` - Refresh the page
 
 ## How It Works
 

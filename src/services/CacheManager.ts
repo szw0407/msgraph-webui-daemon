@@ -177,6 +177,10 @@ export class CacheManager {
     return this.cachedEvents.get(userId);
   }
 
+  public getCacheTimestamp(userId: string): number | undefined {
+    return this.cacheTimestamps.get(userId);
+  }
+
   public isCacheValid(userId: string, maxAgeMs: number = 300000): boolean { // 5 minutes default
     const timestamp = this.cacheTimestamps.get(userId);
     if (!timestamp) {

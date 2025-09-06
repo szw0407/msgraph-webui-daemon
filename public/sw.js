@@ -1,4 +1,4 @@
-const CACHE_NAME = 'calendar-webui-v1';
+const CACHE_NAME = 'calendar-webui-v2';
 const urlsToCache = [
   '/',
   '/app.js',
@@ -10,6 +10,7 @@ const urlsToCache = [
 
 // Install event - cache resources
 self.addEventListener('install', (event) => {
+  console.log('Service Worker installing with cache version:', CACHE_NAME);
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
@@ -20,51 +21,56 @@ self.addEventListener('install', (event) => {
         console.error('Failed to cache resources:', error);
       })
   );
+  // Force the waiting service worker to become the active service worker
+  self.skipWaiting();
 });
 
-// Fetch event - serve from cache with network fallback
+// Fetch event - Network First strategy for better development experience
 self.addEventListener('fetch', (event) => {
+  // Skip cache for API calls and always use network
+  if (event.request.url.includes('/api/')) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // For app resources, use Network First strategy
   event.respondWith(
-    caches.match(event.request)
+    fetch(event.request)
       .then((response) => {
-        // Cache hit - return response
-        if (response) {
-          return response;
-        }
-
-        // Clone the request because it's a stream
-        const fetchRequest = event.request.clone();
-
-        return fetch(fetchRequest).then((response) => {
-          // Check if we received a valid response
-          if (!response || response.status !== 200 || response.type !== 'basic') {
-            return response;
-          }
-
-          // Clone the response because it's a stream
+        // If network request succeeds, clone and cache the response
+        if (response && response.status === 200) {
           const responseToCache = response.clone();
-
+          
           caches.open(CACHE_NAME)
             .then((cache) => {
-              // Only cache GET requests and ignore API calls for now
-              if (event.request.method === 'GET' && !event.request.url.includes('/api/')) {
+              if (event.request.method === 'GET') {
                 cache.put(event.request, responseToCache);
               }
             });
-
-          return response;
-        }).catch(() => {
-          // Network failed, try to serve a cached fallback
-          if (event.request.destination === 'document') {
-            return caches.match('/');
-          }
-        });
+        }
+        return response;
+      })
+      .catch(() => {
+        // Network failed, try to serve from cache
+        return caches.match(event.request)
+          .then((response) => {
+            if (response) {
+              console.log('Serving from cache:', event.request.url);
+              return response;
+            }
+            // If no cache and network failed, serve cached index for navigation
+            if (event.request.destination === 'document') {
+              return caches.match('/');
+            }
+            throw new Error('No cache available and network failed');
+          });
       })
   );
 });
 
-// Activate event - cleanup old caches
+// Activate event - cleanup old caches and take control immediately
 self.addEventListener('activate', (event) => {
+  console.log('Service Worker activating with cache version:', CACHE_NAME);
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -75,6 +81,28 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
+    }).then(() => {
+      // Take control of all pages immediately
+      return self.clients.claim();
     })
   );
+});
+
+// Message event - handle commands from the main thread
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type) {
+    switch (event.data.type) {
+      case 'SKIP_WAITING':
+        self.skipWaiting();
+        break;
+      case 'GET_VERSION':
+        event.ports[0].postMessage({ version: CACHE_NAME });
+        break;
+      case 'CLEAR_CACHE':
+        caches.delete(CACHE_NAME).then(() => {
+          event.ports[0].postMessage({ success: true });
+        });
+        break;
+    }
+  }
 });

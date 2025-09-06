@@ -18,9 +18,126 @@ class CalendarApp {
         this.loadUsers();
         this.startRefreshCountdown();
         
-        // Service Worker registration for PWA
+        // Service Worker registration for PWA with update handling
+        this.setupServiceWorker();
+    }
+
+    setupServiceWorker() {
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js').catch(console.error);
+            navigator.serviceWorker.register('/sw.js')
+                .then((registration) => {
+                    console.log('Service Worker registered successfully');
+                    
+                    // Check for updates
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        if (newWorker) {
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // New service worker is available
+                                    this.showUpdateAvailable();
+                                }
+                            });
+                        }
+                    });
+                })
+                .catch((error) => {
+                    console.error('Service Worker registration failed:', error);
+                });
+
+            // Listen for service worker messages
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
+                    this.showUpdateAvailable();
+                }
+            });
+        }
+    }
+
+    showUpdateAvailable() {
+        // Create update notification
+        const toast = document.createElement('div');
+        toast.className = 'toast align-items-center text-white bg-info border-0 position-fixed';
+        toast.style.cssText = 'top: 20px; right: 20px; z-index: 1055; min-width: 300px;';
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="fas fa-sync-alt me-2"></i>
+                    App update available! 
+                    <button class="btn btn-sm btn-light ms-2" onclick="app.updateApp()">Update Now</button>
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        `;
+        
+        document.body.appendChild(toast);
+        const bsToast = new bootstrap.Toast(toast, { autohide: false });
+        bsToast.show();
+        
+        toast.addEventListener('hidden.bs.toast', () => {
+            document.body.removeChild(toast);
+        });
+    }
+
+    updateApp() {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistration().then((registration) => {
+                if (registration && registration.waiting) {
+                    registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    window.location.reload();
+                } else {
+                    window.location.reload(true);
+                }
+            });
+        } else {
+            window.location.reload(true);
+        }
+    }
+
+    async clearCache() {
+        try {
+            if ('serviceWorker' in navigator) {
+                const registration = await navigator.serviceWorker.getRegistration();
+                if (registration && registration.active) {
+                    // Send message to service worker to clear cache
+                    const channel = new MessageChannel();
+                    channel.port1.onmessage = (event) => {
+                        if (event.data.success) {
+                            this.showSuccess('Cache cleared successfully!');
+                        }
+                    };
+                    registration.active.postMessage({ type: 'CLEAR_CACHE' }, [channel.port2]);
+                }
+            }
+            
+            // Clear localStorage cache as well
+            Object.keys(localStorage).forEach(key => {
+                if (key.startsWith('events_')) {
+                    localStorage.removeItem(key);
+                }
+            });
+            
+            this.showSuccess('All caches cleared! Refresh the page to see changes.');
+        } catch (error) {
+            console.error('Failed to clear cache:', error);
+            this.showError('Failed to clear cache');
+        }
+    }
+
+    forceRefresh() {
+        // Clear all caches and force reload
+        if ('caches' in window) {
+            caches.keys().then(cacheNames => {
+                return Promise.all(
+                    cacheNames.map(cacheName => caches.delete(cacheName))
+                );
+            }).then(() => {
+                // Force reload from server
+                window.location.reload(true);
+            });
+        } else {
+            // Fallback for browsers without cache API
+            window.location.href = window.location.href + '?t=' + Date.now();
         }
     }
 
@@ -28,7 +145,7 @@ class CalendarApp {
         // Login buttons
         document.getElementById('loginBtn').addEventListener('click', () => this.login());
         document.getElementById('loginBtnMain').addEventListener('click', () => this.login());
-        document.getElementById('addAccountBtn').addEventListener('click', () => this.login());
+        document.getElementById('addAccountBtnModal').addEventListener('click', () => this.login());
         
         // Refresh buttons
         document.getElementById('refreshBtn').addEventListener('click', () => this.refreshEvents());
@@ -38,9 +155,47 @@ class CalendarApp {
         document.getElementById('settingsBtn').addEventListener('click', () => this.showSettings());
         document.getElementById('logoutBtn').addEventListener('click', () => this.logout());
         
+        // Developer tools (will be attached when settings modal is shown)
+        document.addEventListener('click', (event) => {
+            if (event.target.id === 'clearCacheBtn') {
+                this.clearCache();
+            } else if (event.target.id === 'forceRefreshBtn') {
+                this.forceRefresh();
+            }
+        });
+        
         // Online/offline detection
         window.addEventListener('online', () => this.setConnectionStatus(true));
         window.addEventListener('offline', () => this.setConnectionStatus(false));
+        
+        // Keyboard shortcuts for user switching
+        document.addEventListener('keydown', (event) => this.handleKeyboardShortcuts(event));
+    }
+
+    handleKeyboardShortcuts(event) {
+        // Alt/Option + number key to switch users
+        if (event.altKey && !event.ctrlKey && !event.shiftKey && !event.metaKey) {
+            const num = parseInt(event.key);
+            if (num >= 1 && num <= this.users.length) {
+                event.preventDefault();
+                const targetUser = this.users[num - 1];
+                if (targetUser && targetUser.id !== this.currentUserId) {
+                    this.switchUser(targetUser.id);
+                }
+            }
+        }
+        
+        // Alt/Option + A to add new account
+        if (event.altKey && event.key.toLowerCase() === 'a' && !event.ctrlKey && !event.shiftKey && !event.metaKey) {
+            event.preventDefault();
+            this.login();
+        }
+        
+        // Alt/Option + S to show settings
+        if (event.altKey && event.key.toLowerCase() === 's' && !event.ctrlKey && !event.shiftKey && !event.metaKey) {
+            event.preventDefault();
+            this.showSettings();
+        }
     }
 
     setConnectionStatus(online) {
@@ -90,17 +245,21 @@ class CalendarApp {
             if (this.users.length === 0) {
                 this.showLoginSection();
             } else {
-                this.renderUserSelection();
                 if (this.currentUserId && this.users.find(u => u.id === this.currentUserId)) {
                     this.showMainContent();
                     this.loadEvents();
                 } else if (this.users.length === 1) {
+                    // Auto-select the only user
                     this.currentUserId = this.users[0].id;
                     localStorage.setItem('currentUserId', this.currentUserId);
                     this.showMainContent();
                     this.loadEvents();
                 } else {
-                    this.showUserSelection();
+                    // Multiple users but no current selection - select first user
+                    this.currentUserId = this.users[0].id;
+                    localStorage.setItem('currentUserId', this.currentUserId);
+                    this.showMainContent();
+                    this.loadEvents();
                 }
             }
         } catch (error) {
@@ -111,23 +270,13 @@ class CalendarApp {
 
     showLoginSection() {
         document.getElementById('loginSection').style.display = 'block';
-        document.getElementById('userSelectionSection').style.display = 'none';
         document.getElementById('mainContent').style.display = 'none';
         document.getElementById('loginBtn').style.display = 'inline-block';
         document.getElementById('userDropdown').style.display = 'none';
     }
 
-    showUserSelection() {
-        document.getElementById('loginSection').style.display = 'none';
-        document.getElementById('userSelectionSection').style.display = 'block';
-        document.getElementById('mainContent').style.display = 'none';
-        document.getElementById('loginBtn').style.display = 'none';
-        document.getElementById('userDropdown').style.display = 'none';
-    }
-
     showMainContent() {
         document.getElementById('loginSection').style.display = 'none';
-        document.getElementById('userSelectionSection').style.display = this.users.length > 1 ? 'block' : 'none';
         document.getElementById('mainContent').style.display = 'block';
         document.getElementById('loginBtn').style.display = 'none';
         document.getElementById('userDropdown').style.display = 'inline-block';
@@ -137,34 +286,46 @@ class CalendarApp {
             document.getElementById('currentUserName').textContent = currentUser.name;
             document.getElementById('currentUserInfo').textContent = `${currentUser.name} (${currentUser.email})`;
         }
-    }
-
-    renderUserSelection() {
-        const container = document.getElementById('userBadges');
-        container.innerHTML = '';
         
-        this.users.forEach(user => {
-            const badge = document.createElement('span');
-            badge.className = `badge bg-light text-dark user-badge ${user.id === this.currentUserId ? 'active' : ''}`;
-            badge.innerHTML = `<i class="fas fa-user me-1"></i>${user.name}`;
-            badge.addEventListener('click', () => this.switchUser(user.id));
-            container.appendChild(badge);
-        });
-
-        // Add "Add Account" button
-        const addButton = document.createElement('span');
-        addButton.className = 'badge bg-primary text-white user-badge add-account-badge';
-        addButton.innerHTML = '<i class="fas fa-plus me-1"></i>Add Account';
-        addButton.addEventListener('click', () => this.login());
-        container.appendChild(addButton);
+        // Update connected accounts count
+        document.getElementById('connectedCount').textContent = this.users.length;
     }
 
     switchUser(userId) {
+        if (userId === this.currentUserId) {
+            return; // Already selected
+        }
+        
+        // Show loading state
+        this.showLoadingState();
+        
         this.currentUserId = userId;
         localStorage.setItem('currentUserId', userId);
-        this.renderUserSelection();
         this.showMainContent();
         this.loadEvents();
+        
+        this.showSuccess(`Switched to ${this.users.find(u => u.id === userId)?.name || 'user'}`);
+    }
+
+    showLoadingState() {
+        const container = document.getElementById('eventsContainer');
+        container.innerHTML = `
+            <div class="text-center">
+                <div class="loading-spinner mx-auto"></div>
+                <p class="mt-3">Loading calendar events...</p>
+            </div>
+        `;
+    }
+
+    getUserInitials(name) {
+        if (!name) {
+            return '?';
+        }
+        const names = name.trim().split(' ');
+        if (names.length === 1) {
+            return names[0].charAt(0).toUpperCase();
+        }
+        return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase();
     }
 
     login() {
@@ -188,17 +349,13 @@ class CalendarApp {
                 // Show appropriate section based on remaining users
                 if (this.users.length === 0) {
                     this.showLoginSection();
-                } else if (this.users.length === 1) {
-                    // Auto-select the remaining user
+                } else {
+                    // Auto-select the first remaining user
                     this.currentUserId = this.users[0].id;
                     localStorage.setItem('currentUserId', this.currentUserId);
                     this.showMainContent();
                     this.loadEvents();
-                } else {
-                    this.showUserSelection();
                 }
-                
-                this.renderUserSelection();
             } catch (error) {
                 console.error('Logout error:', error);
             }
@@ -206,7 +363,9 @@ class CalendarApp {
     }
 
     async loadEvents() {
-        if (!this.currentUserId) return;
+        if (!this.currentUserId) {
+            return;
+        }
 
         try {
             const response = await fetch(`/api/events?userId=${encodeURIComponent(this.currentUserId)}`);
@@ -377,36 +536,130 @@ class CalendarApp {
     showSettings() {
         const modal = new bootstrap.Modal(document.getElementById('settingsModal'));
         
+        // Populate quick switch badges
+        this.renderQuickSwitchBadges();
+        
         // Populate connected accounts
         const accountsContainer = document.getElementById('connectedAccounts');
-        accountsContainer.innerHTML = this.users.map(user => `
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <div>
-                    <strong>${this.escapeHtml(user.name)}</strong><br>
-                    <small class="text-muted">${this.escapeHtml(user.email)}</small>
+        if (this.users.length === 0) {
+            accountsContainer.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-user-slash fa-2x mb-2"></i>
+                    <p>No accounts connected</p>
                 </div>
-                <button class="btn btn-sm btn-outline-danger" onclick="app.removeAccount('${user.id}')">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        `).join('');
+            `;
+        } else {
+            accountsContainer.innerHTML = this.users.map(user => {
+                const initials = this.getUserInitials(user.name);
+                const isCurrent = user.id === this.currentUserId;
+                return `
+                    <div class="account-card ${isCurrent ? 'current' : ''}">
+                        <div class="d-flex align-items-center">
+                            <div class="user-initials me-3">${initials}</div>
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center">
+                                    <strong class="me-2">${this.escapeHtml(user.name)}</strong>
+                                    ${isCurrent ? '<span class="badge bg-primary">Current</span>' : ''}
+                                </div>
+                                <small class="text-muted">${this.escapeHtml(user.email)}</small>
+                            </div>
+                            <div class="d-flex gap-2">
+                                ${isCurrent ? '' : `
+                                    <button class="btn btn-sm btn-outline-primary" onclick="app.switchUserFromModal('${user.id}')">
+                                        <i class="fas fa-exchange-alt"></i>
+                                    </button>
+                                `}
+                                <button class="btn btn-sm btn-outline-danger" onclick="app.removeAccount('${user.id}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
         
         modal.show();
+    }
+
+    renderQuickSwitchBadges() {
+        const container = document.getElementById('quickSwitchBadges');
+        container.innerHTML = '';
+        
+        this.users.forEach((user, index) => {
+            const badge = document.createElement('div');
+            badge.className = `quick-switch-badge bg-light text-dark ${user.id === this.currentUserId ? 'current' : ''}`;
+            badge.title = `Alt+${index + 1} to switch to this account`;
+            
+            const initials = this.getUserInitials(user.name);
+            badge.innerHTML = `
+                <span class="user-avatar-small">${initials}</span>
+                <span>${user.name}</span>
+                <small class="ms-1 opacity-75">(${index + 1})</small>
+            `;
+            
+            badge.addEventListener('click', () => {
+                if (user.id !== this.currentUserId) {
+                    this.switchUserFromModal(user.id);
+                }
+            });
+            
+            container.appendChild(badge);
+        });
+        
+        // Add "Add Account" badge
+        const addBadge = document.createElement('div');
+        addBadge.className = 'quick-switch-badge bg-primary text-white';
+        addBadge.title = 'Alt+A to add account';
+        addBadge.innerHTML = '<i class="fas fa-plus me-2"></i>Add Account';
+        addBadge.addEventListener('click', () => this.login());
+        container.appendChild(addBadge);
+    }
+
+    switchUserFromModal(userId) {
+        this.switchUser(userId);
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('settingsModal'));
+        modal.hide();
     }
 
     async removeAccount(userId) {
         try {
             await fetch(`/api/logout?userId=${encodeURIComponent(userId)}`);
-            if (userId === this.currentUserId) {
+            
+            const userToRemove = this.users.find(u => u.id === userId);
+            const wasCurrentUser = userId === this.currentUserId;
+            
+            // Remove from users list
+            this.users = this.users.filter(user => user.id !== userId);
+            
+            if (wasCurrentUser) {
                 localStorage.removeItem('currentUserId');
                 this.currentUserId = null;
                 this.clearRefreshInterval();
+                
+                if (this.users.length > 0) {
+                    // Switch to first remaining user
+                    this.currentUserId = this.users[0].id;
+                    localStorage.setItem('currentUserId', this.currentUserId);
+                    this.showMainContent();
+                    this.loadEvents();
+                } else {
+                    // No users left, show login
+                    this.showLoginSection();
+                }
             }
-            this.loadUsers();
             
-            // Close modal
+            // Refresh the settings modal if it's open
             const modal = bootstrap.Modal.getInstance(document.getElementById('settingsModal'));
-            modal.hide();
+            if (modal) {
+                this.renderQuickSwitchBadges();
+                // Re-render account list
+                this.showSettings();
+            }
+            
+            this.showSuccess(`Removed account: ${userToRemove?.name || 'User'}`);
+            
         } catch (error) {
             console.error('Failed to remove account:', error);
             this.showError('Failed to remove account');
@@ -462,7 +715,9 @@ class CalendarApp {
     }
 
     escapeHtml(text) {
-        if (!text) return '';
+        if (!text) {
+            return '';
+        }
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;

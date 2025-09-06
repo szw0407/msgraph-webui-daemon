@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>MS Graph Calendar WebUI</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -41,14 +44,38 @@
             margin-right: 0.5rem;
             margin-bottom: 0.5rem;
             transition: all 0.2s ease;
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            border-radius: 1.5rem;
+            font-size: 0.9rem;
         }
         .user-badge:hover {
             transform: translateY(-1px);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
         }
         .user-badge.active {
             background-color: #0078d4 !important;
             color: white !important;
+            box-shadow: 0 2px 8px rgba(0,120,212,0.3);
+        }
+        .user-badge .user-avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: #fff;
+            color: #0078d4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 0.5rem;
+            font-size: 0.8rem;
+        }
+        .user-badge.active .user-avatar {
+            background-color: rgba(255,255,255,0.2);
+            color: white;
         }
         .add-account-badge {
             cursor: pointer;
@@ -69,6 +96,71 @@
         .online-indicator {
             color: #28a745;
         }
+        .account-card {
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            transition: all 0.2s ease;
+        }
+        .account-card:hover {
+            border-color: #0078d4;
+            box-shadow: 0 2px 8px rgba(0,120,212,0.1);
+        }
+        .account-card.current {
+            border-color: #0078d4;
+            background-color: rgba(0,120,212,0.05);
+        }
+        .user-initials {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #0078d4;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        .quick-switch-badge {
+            cursor: pointer;
+            padding: 0.75rem 1rem;
+            border-radius: 2rem;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            font-size: 0.9rem;
+            text-decoration: none;
+            border: 2px solid transparent;
+        }
+        .quick-switch-badge:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,120,212,0.2);
+            text-decoration: none;
+        }
+        .quick-switch-badge.current {
+            background-color: #0078d4 !important;
+            color: white !important;
+            border-color: #0078d4;
+        }
+        .quick-switch-badge .user-avatar-small {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background-color: rgba(255,255,255,0.2);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 0.75rem;
+            font-size: 0.8rem;
+        }
+        .quick-switch-badge:not(.current) .user-avatar-small {
+            background-color: #0078d4;
+            color: white;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -82,6 +174,9 @@
                 <span id="connectionStatus" class="badge bg-secondary me-3">
                     <i class="fas fa-wifi me-1"></i>
                     <span id="statusText">Checking...</span>
+                </span>
+                <span id="versionStatus" class="badge bg-dark me-3" style="font-size: 0.7em;">
+                    v2.0
                 </span>
                 <button id="refreshBtn" class="btn btn-outline-light btn-sm me-2">
                     <i class="fas fa-sync-alt me-1"></i>
@@ -128,24 +223,7 @@
             </div>
         </div>
 
-        <!-- User Selection Section -->
-        <div id="userSelectionSection" style="display: none;">
-            <div class="card mb-4">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <i class="fas fa-users me-2"></i>
-                        Switch Account
-                    </h5>
-                    <div id="userBadges" class="d-flex flex-wrap align-items-center">
-                        <!-- User badges will be populated here -->
-                    </div>
-                    <button id="addAccountBtn" class="btn btn-outline-primary btn-sm">
-                        <i class="fas fa-plus me-1"></i>
-                        Add Another Account
-                    </button>
-                </div>
-            </div>
-        </div>
+
 
         <!-- Main Content -->
         <div id="mainContent" style="display: none;">
@@ -192,6 +270,10 @@
                                 <strong>Total Events Today:</strong>
                                 <span id="eventCount" class="badge bg-primary">0</span>
                             </div>
+                            <div class="mb-3">
+                                <strong>Connected Accounts:</strong>
+                                <span id="connectedCount" class="badge bg-info">0</span>
+                            </div>
                             <div class="d-grid">
                                 <button id="refreshBtn2" class="btn btn-outline-primary btn-sm">
                                     <i class="fas fa-sync-alt me-1"></i>
@@ -206,25 +288,87 @@
 
         <!-- Settings Modal -->
         <div class="modal fade" id="settingsModal" tabindex="-1">
-            <div class="modal-dialog">
+            <div class="modal-dialog modal-lg">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">
                             <i class="fas fa-cog me-2"></i>
-                            Settings
+                            Account Management & Settings
                         </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <h6>Connected Accounts</h6>
-                        <div id="connectedAccounts">
+                        <!-- Quick Account Switcher -->
+                        <div class="mb-4">
+                            <h6><i class="fas fa-exchange-alt me-2"></i>Quick Switch Account</h6>
+                            <p class="text-muted mb-3">Click on any account to switch to it instantly</p>
+                            <div id="quickSwitchBadges" class="d-flex flex-wrap gap-2 mb-3">
+                                <!-- Quick switch badges will be populated here -->
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <!-- Detailed Account Management -->
+                        <h6><i class="fas fa-users me-2"></i>Connected Accounts</h6>
+                        <p class="text-muted">Manage your Microsoft accounts and their permissions</p>
+                        <div id="connectedAccounts" class="mb-4">
                             <!-- Account list will be populated here -->
                         </div>
+                        <div class="d-grid mb-4">
+                            <button id="addAccountBtnModal" class="btn btn-primary">
+                                <i class="fas fa-plus me-2"></i>
+                                Add Another Microsoft Account
+                            </button>
+                        </div>
                         <hr>
-                        <h6>Application Info</h6>
-                        <p><strong>Version:</strong> 1.0.0</p>
-                        <p><strong>Auto-refresh:</strong> 60±10 seconds</p>
-                        <p><strong>Offline Support:</strong> Enabled (PWA)</p>
+                        <h6><i class="fas fa-keyboard me-2"></i>Keyboard Shortcuts</h6>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <small><kbd>Alt</kbd> + <kbd>1-9</kbd> Switch users</small><br>
+                                <small><kbd>Alt</kbd> + <kbd>A</kbd> Add account</small>
+                            </div>
+                            <div class="col-md-6">
+                                <small><kbd>Alt</kbd> + <kbd>S</kbd> Open settings</small><br>
+                                <small><kbd>F5</kbd> or <kbd>Ctrl</kbd>+<kbd>R</kbd> Refresh page</small>
+                            </div>
+                        </div>
+                        <hr>
+                        <h6><i class="fas fa-tools me-2"></i>Developer Tools</h6>
+                        <p class="text-muted small">Use these tools if the app is not updating properly</p>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <button id="clearCacheBtn" class="btn btn-outline-warning btn-sm w-100">
+                                    <i class="fas fa-trash me-1"></i>
+                                    Clear Cache
+                                </button>
+                            </div>
+                            <div class="col-md-6">
+                                <button id="forceRefreshBtn" class="btn btn-outline-info btn-sm w-100">
+                                    <i class="fas fa-sync me-1"></i>
+                                    Force Refresh
+                                </button>
+                            </div>
+                        </div>
+                        <small class="text-muted">
+                            <strong>Clear Cache:</strong> Removes stored app data<br>
+                            <strong>Force Refresh:</strong> Reloads app from server
+                        </small>
+                        <hr>
+                        <h6><i class="fas fa-info-circle me-2"></i>Application Information</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Version:</strong> 1.0.0</p>
+                                <p><strong>Auto-refresh:</strong> 60±10 seconds</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Offline Support:</strong> Enabled (PWA)</p>
+                                <p><strong>Multi-User:</strong> Supported</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     </div>
                 </div>
             </div>
