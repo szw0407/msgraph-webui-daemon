@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MS Graph Calendar WebUI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0078d4">
+    <style>
+        .event-card {
+            border-left: 4px solid #0078d4;
+            margin-bottom: 1rem;
+        }
+        .event-time {
+            font-weight: 600;
+            color: #0078d4;
+        }
+        .event-online {
+            color: #28a745;
+        }
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #0078d4;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .last-update {
+            font-size: 0.85em;
+            color: #6c757d;
+        }
+        .user-badge {
+            cursor: pointer;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .user-badge.active {
+            background-color: #0078d4 !important;
+        }
+        .refresh-counter {
+            font-size: 0.8em;
+            color: #6c757d;
+        }
+        .offline-indicator {
+            color: #dc3545;
+        }
+        .online-indicator {
+            color: #28a745;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <span class="navbar-brand">
+                <i class="fas fa-calendar-alt me-2"></i>
+                MS Graph Calendar WebUI
+            </span>
+            <div class="d-flex align-items-center">
+                <span id="connectionStatus" class="badge bg-secondary me-3">
+                    <i class="fas fa-wifi me-1"></i>
+                    <span id="statusText">Checking...</span>
+                </span>
+                <button id="refreshBtn" class="btn btn-outline-light btn-sm me-2">
+                    <i class="fas fa-sync-alt me-1"></i>
+                    Manual Refresh
+                </button>
+                <button id="loginBtn" class="btn btn-success btn-sm me-2" style="display: none;">
+                    <i class="fas fa-sign-in-alt me-1"></i>
+                    Sign in with Microsoft
+                </button>
+                <div class="dropdown" id="userDropdown" style="display: none;">
+                    <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-user me-1"></i>
+                        <span id="currentUserName">User</span>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#" id="settingsBtn">
+                            <i class="fas fa-cog me-2"></i>Settings
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#" id="logoutBtn">
+                            <i class="fas fa-sign-out-alt me-2"></i>Logout Current User
+                        </a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Login Section -->
+        <div id="loginSection" class="row justify-content-center" style="display: none;">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <i class="fas fa-calendar-alt fa-3x text-primary mb-3"></i>
+                        <h3>Welcome to MS Graph Calendar WebUI</h3>
+                        <p class="text-muted">Sign in with your Microsoft account to view your calendar events</p>
+                        <button id="loginBtnMain" class="btn btn-primary btn-lg">
+                            <i class="fab fa-microsoft me-2"></i>
+                            Sign in with Microsoft
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- User Selection Section -->
+        <div id="userSelectionSection" style="display: none;">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-users me-2"></i>
+                        Switch Account
+                    </h5>
+                    <div id="userBadges" class="d-flex flex-wrap align-items-center">
+                        <!-- User badges will be populated here -->
+                    </div>
+                    <button id="addAccountBtn" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-plus me-1"></i>
+                        Add Another Account
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div id="mainContent" style="display: none;">
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-calendar-day me-2"></i>
+                                Today's Events
+                            </h5>
+                            <div class="text-end">
+                                <div class="last-update" id="lastUpdate">Never updated</div>
+                                <div class="refresh-counter" id="refreshCounter">Next refresh in: --</div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div id="eventsContainer">
+                                <div class="text-center">
+                                    <div class="loading-spinner mx-auto"></div>
+                                    <p class="mt-3">Loading your calendar events...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Dashboard Info
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <strong>Auto-refresh:</strong> Every 60±10 seconds
+                            </div>
+                            <div class="mb-3">
+                                <strong>Current User:</strong>
+                                <div id="currentUserInfo" class="text-muted">Loading...</div>
+                            </div>
+                            <div class="mb-3">
+                                <strong>Total Events Today:</strong>
+                                <span id="eventCount" class="badge bg-primary">0</span>
+                            </div>
+                            <div class="d-grid">
+                                <button id="refreshBtn2" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-sync-alt me-1"></i>
+                                    Refresh Now
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div class="modal fade" id="settingsModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="fas fa-cog me-2"></i>
+                            Settings
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <h6>Connected Accounts</h6>
+                        <div id="connectedAccounts">
+                            <!-- Account list will be populated here -->
+                        </div>
+                        <hr>
+                        <h6>Application Info</h6>
+                        <p><strong>Version:</strong> 1.0.0</p>
+                        <p><strong>Auto-refresh:</strong> 60±10 seconds</p>
+                        <p><strong>Offline Support:</strong> Enabled (PWA)</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/app.js"></script>
+</body>
+</html>
