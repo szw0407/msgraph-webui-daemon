@@ -150,6 +150,13 @@ class CalendarApp {
             badge.addEventListener('click', () => this.switchUser(user.id));
             container.appendChild(badge);
         });
+
+        // Add "Add Account" button
+        const addButton = document.createElement('span');
+        addButton.className = 'badge bg-primary text-white user-badge add-account-badge';
+        addButton.innerHTML = '<i class="fas fa-plus me-1"></i>Add Account';
+        addButton.addEventListener('click', () => this.login());
+        container.appendChild(addButton);
     }
 
     switchUser(userId) {
@@ -168,11 +175,30 @@ class CalendarApp {
         if (this.currentUserId) {
             try {
                 await fetch(`/api/logout?userId=${encodeURIComponent(this.currentUserId)}`);
+                
+                // Remove the user from the local list
+                this.users = this.users.filter(user => user.id !== this.currentUserId);
+                
+                // Clear current user
                 localStorage.removeItem('currentUserId');
                 this.currentUserId = null;
                 this.events = [];
                 this.clearRefreshInterval();
-                this.loadUsers();
+                
+                // Show appropriate section based on remaining users
+                if (this.users.length === 0) {
+                    this.showLoginSection();
+                } else if (this.users.length === 1) {
+                    // Auto-select the remaining user
+                    this.currentUserId = this.users[0].id;
+                    localStorage.setItem('currentUserId', this.currentUserId);
+                    this.showMainContent();
+                    this.loadEvents();
+                } else {
+                    this.showUserSelection();
+                }
+                
+                this.renderUserSelection();
             } catch (error) {
                 console.error('Logout error:', error);
             }

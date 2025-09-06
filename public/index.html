@@ -40,9 +40,24 @@
             cursor: pointer;
             margin-right: 0.5rem;
             margin-bottom: 0.5rem;
+            transition: all 0.2s ease;
+        }
+        .user-badge:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         .user-badge.active {
             background-color: #0078d4 !important;
+            color: white !important;
+        }
+        .add-account-badge {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .add-account-badge:hover {
+            background-color: #106ebe !important;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         .refresh-counter {
             font-size: 0.8em;

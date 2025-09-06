@@ -8,9 +8,9 @@ import { CacheManager } from "./src/services/CacheManager.ts";
 const PORT = parseInt(process.env.PORT || "3000");
 
 // Initialize services
-const authController = new AuthController();
-const calendarService = new CalendarService();
 const cacheManager = new CacheManager();
+const authController = new AuthController(cacheManager);
+const calendarService = new CalendarService();
 
 // Set up background refresh
 let refreshInterval: Timer;
@@ -27,7 +27,7 @@ function setupBackgroundRefresh() {
     try {
       const users = cacheManager.getAllUsers();
       for (const userId of users) {
-        const accessToken = cacheManager.getAccessToken(userId);
+        const accessToken = await authController.getValidAccessToken(userId);
         if (accessToken) {
           const events = await calendarService.getTodayEvents(accessToken);
           cacheManager.cacheEvents(userId, events);
@@ -95,7 +95,7 @@ const server = serve({
           }
           
           try {
-            const accessToken = cacheManager.getAccessToken(userId);
+            const accessToken = await authController.getValidAccessToken(userId);
             if (!accessToken) {
               return new Response(JSON.stringify({ error: "Not authenticated" }), {
                 status: 401,
@@ -128,6 +128,25 @@ const server = serve({
         if (path === "/api/users") {
           const users = cacheManager.getAllUserProfiles();
           return new Response(JSON.stringify({ users }), {
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+
+        if (path === "/api/token-status") {
+          const userId = url.searchParams.get("userId");
+          if (!userId) {
+            return new Response("Missing userId", { status: 400 });
+          }
+          
+          const tokenData = cacheManager.getTokenData(userId);
+          const isExpired = cacheManager.isTokenExpired(userId);
+          
+          return new Response(JSON.stringify({ 
+            hasToken: !!tokenData?.accessToken,
+            hasRefreshToken: !!tokenData?.refreshToken,
+            isExpired,
+            expiresAt: tokenData?.expiresAt
+          }), {
             headers: { "Content-Type": "application/json" }
           });
         }
