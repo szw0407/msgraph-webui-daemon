@@ -50,20 +50,18 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => {
+      .catch(async () => {
         // Network failed, try to serve from cache
-        return caches.match(event.request)
-          .then((response) => {
-            if (response) {
-              console.log('Serving from cache:', event.request.url);
-              return response;
-            }
-            // If no cache and network failed, serve cached index for navigation
-            if (event.request.destination === 'document') {
-              return caches.match('/');
-            }
-            throw new Error('No cache available and network failed');
-          });
+        const response = await caches.match(event.request);
+        if (response) {
+          console.log('Serving from cache:', event.request.url);
+          return response;
+        }
+        // If no cache and network failed, serve cached index for navigation
+        if (event.request.destination === 'document') {
+          return caches.match('/');
+        }
+        throw new Error('No cache available and network failed');
       })
   );
 });
