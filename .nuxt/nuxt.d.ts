@@ -1,4 +1,5 @@
 /// <reference types="@vueuse/nuxt" />
+/// <reference types="@varlet/nuxt" />
 /// <reference types="@pinia/nuxt" />
 /// <reference types="@vite-pwa/nuxt" />
 /// <reference types="@nuxt/devtools" />

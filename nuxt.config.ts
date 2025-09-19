@@ -8,12 +8,24 @@ export default defineNuxtConfig({
     typeCheck: false
   },
 
+  // CSS framework
+  css: [
+    '@varlet/ui/es/style'
+  ],
+
   // Modules
   modules: [
+    '@varlet/nuxt',
     '@pinia/nuxt',
     '@vueuse/nuxt',
     '@vite-pwa/nuxt'
   ],
+
+  // Varlet configuration
+  varlet: {
+    // Global component registration
+    autoImport: true
+  },
 
   // PWA configuration
   pwa: {

@@ -221,7 +221,7 @@ onUnmounted(() => {
 
 // Methods
 async function login() {
-  await navigateTo('/api/login')
+  window.location.href = '/api/login'
 }
 
 async function logout(userId: string) {

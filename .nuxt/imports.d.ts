@@ -34,6 +34,7 @@ export { defineLazyHydrationComponent } from '#app/composables/lazy-hydration';
 export { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts';
 export { useAuthStore } from '../stores/auth';
 export { useCalendarStore } from '../stores/calendar';
+export { ImagePreview, Snackbar, Picker, ActionSheet, Dialog, Locale, StyleProvider, LoadingBar } from '@varlet/ui';
 export { defineStore, acceptHMRUpdate, usePinia, storeToRefs } from '../node_modules/@pinia/nuxt/dist/runtime/composables';
 export { usePWA, useTransparentPwaIcon, useMaskablePwaIcon, useFaviconPwaIcon, useApplePwaIcon, useAppleSplashScreenPwaIcon } from '../node_modules/@vite-pwa/nuxt/dist/runtime/composables/index';
 export { useNuxtDevTools } from '../node_modules/@nuxt/devtools/dist/runtime/use-nuxt-devtools';
