@@ -1,25 +1,38 @@
 {
   "name": "msgraph-webui-daemon",
-  "module": "index.ts",
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun run index.ts",
-    "start": "bun run index.ts"
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "dev:legacy": "bun run index.ts",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "start": "node .output/server/index.mjs",
+    "start:legacy": "bun run index.ts"
   },
   "dependencies": {
     "@azure/msal-node": "^2.16.3",
     "@microsoft/microsoft-graph-client": "^3.0.7",
+    "@pinia/nuxt": "^0.11.2",
+    "@varlet/icons": "^3.11.4",
+    "@varlet/nuxt": "^0.1.5",
+    "@varlet/ui": "^3.11.4",
+    "@vite-pwa/nuxt": "^1.0.4",
+    "@vueuse/nuxt": "^13.9.0",
     "cors": "^2.8.5",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "nuxt": "^4.1.2",
+    "pinia": "^3.0.3"
   },
   "devDependencies": {
+    "@nuxt/devtools": "^2.6.3",
+    "@nuxt/typescript-build": "^3.0.2",
     "@types/bun": "latest",
-    "@types/node": "^20.19.13",
     "@types/cors": "^2.8.19",
-    "@types/node-cron": "^3.0.11"
-  },
-  "peerDependencies": {
+    "@types/node": "^20.19.13",
+    "@types/node-cron": "^3.0.11",
     "typescript": "^5.9.2"
   }
 }
