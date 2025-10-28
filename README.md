@@ -196,6 +196,11 @@ The original Bun-based implementation is preserved in the `legacy/` directory fo
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
+## TODO
+
+[] A nice way to arrange the cards
+[] More cards available of different features.
+
 ## 📄 License
 
 This project is open source and available under the [MIT License](LICENSE).
