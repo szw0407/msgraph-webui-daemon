@@ -27,7 +27,7 @@
     "pinia": "^3.0.3"
   },
   "devDependencies": {
-    "@nuxt/devtools": "^2.6.3",
+    "@nuxt/devtools": "^3.4.1",
     "@nuxt/typescript-build": "^3.0.2",
     "@types/bun": "latest",
     "@types/cors": "^2.8.19",
